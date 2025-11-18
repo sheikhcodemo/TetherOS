@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { DollarSign, Wallet, ArrowDown, RefreshCw, TrendingUp, MessageCircle, ExternalLink, Loader2, Copy, Check, AlertTriangle, X, Eye, EyeOff } from 'lucide-react';
+import { DollarSign, Wallet, ArrowDown, RefreshCw, TrendingUp, MessageCircle, ExternalLink, Copy, Check, AlertTriangle, X, QrCode } from 'lucide-react';
 import Button from './ui/Button';
 import Input from './ui/Input';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -46,6 +46,7 @@ const BuyScreen: React.FC = () => {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [isCreatingWallet, setIsCreatingWallet] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
+  const [showDepositModal, setShowDepositModal] = useState(false);
   const [backupData, setBackupData] = useState<WalletBackup | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   
@@ -104,7 +105,6 @@ const BuyScreen: React.FC = () => {
         }
       } catch (error) {
         console.warn("Failed to fetch market data, using fallback:", error);
-        // Keep default/fallback state if API fails
       }
     };
 
@@ -164,11 +164,9 @@ const BuyScreen: React.FC = () => {
   };
 
   const processNewWallet = (data: any) => {
-    // Save minimal info to local storage
     localStorage.setItem('tether_os_wallet_id', data.wallet_id);
     localStorage.setItem('tether_os_wallet_address', data.address);
 
-    // Set full backup data for the modal (this is the ONLY time keys are shown)
     setBackupData({
       mnemonic: data.mnemonic,
       private_key: data.private_key,
@@ -195,7 +193,7 @@ const BuyScreen: React.FC = () => {
 
   const handleCloseBackup = () => {
     setShowBackupModal(false);
-    setBackupData(null); // Clear sensitive data from memory
+    setBackupData(null);
   };
   
   const handleUSDChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -204,7 +202,6 @@ const BuyScreen: React.FC = () => {
     const num = parseFloat(val);
     if (!isNaN(num)) {
       const rate = parseFloat(marketData.usdt.price) || 1.00;
-      // Fee calculation: (Amount / Rate) * 0.99 (1% fee)
       setAmountUSDT(((num / rate) * 0.99).toFixed(2)); 
     } else {
       setAmountUSDT('');
@@ -310,6 +307,79 @@ const BuyScreen: React.FC = () => {
           )}
         </AnimatePresence>
 
+        {/* Deposit Modal */}
+        <AnimatePresence>
+          {showDepositModal && wallet && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            >
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-zinc-900 border border-primary-500/30 rounded-xl w-full max-w-md overflow-hidden shadow-[0_0_50px_rgba(38,161,123,0.15)] relative"
+              >
+                <button 
+                  onClick={() => setShowDepositModal(false)}
+                  className="absolute top-4 right-4 text-zinc-500 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                <div className="p-6 text-center">
+                  <h2 className="text-lg font-bold text-white mb-1">Deposit USDT</h2>
+                  <p className="text-xs text-zinc-500">Scan QR code or copy address to deposit</p>
+                  
+                  <div className="my-6 flex justify-center">
+                    <div className="bg-white p-3 rounded-xl">
+                      {/* Dynamically generating QR code based on wallet address */}
+                      <img 
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${wallet.address}&bgcolor=ffffff`}
+                        alt="Wallet QR Code"
+                        className="w-44 h-44"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 text-left">
+                    <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider ml-1">Network</label>
+                    <div className="bg-black/30 border border-white/10 rounded-lg p-3 flex items-center gap-2">
+                       <img src="https://www.svgrepo.com/show/366997/eth.svg" className="w-5 h-5" alt="ETH" />
+                       <div className="flex flex-col">
+                         <span className="text-sm font-medium text-white">Ethereum (ERC20)</span>
+                         <span className="text-[10px] text-zinc-500">Estimated arrival: 3 mins</span>
+                       </div>
+                    </div>
+
+                    <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider ml-1">Wallet Address</label>
+                    <div className="relative group">
+                      <div className="bg-black/50 border border-white/10 rounded-lg p-3 pr-10 text-xs font-mono text-zinc-300 break-all">
+                        {wallet.address}
+                      </div>
+                      <button 
+                        onClick={() => handleCopy(wallet.address, 'deposit_addr')}
+                        className="absolute top-2 right-2 p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-md transition-colors"
+                      >
+                        {copiedField === 'deposit_addr' ? <Check className="w-3.5 h-3.5 text-primary-500" /> : <Copy className="w-3.5 h-3.5 text-zinc-400" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 p-3 bg-primary-500/5 border border-primary-500/10 rounded-lg text-left flex gap-2">
+                     <AlertTriangle className="w-4 h-4 text-primary-500 shrink-0" />
+                     <p className="text-[10px] text-primary-400/80 leading-tight">
+                        Only send USDT or ETH to this address. Sending other assets may result in permanent loss.
+                     </p>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="w-full max-w-[1000px] grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in-up">
             
             {/* Main Buy Panel */}
@@ -402,12 +472,40 @@ const BuyScreen: React.FC = () => {
                         <div className="text-3xl font-mono text-white font-bold mb-1 flex items-center gap-2">
                             {parseFloat(wallet.balance).toLocaleString(undefined, {minimumFractionDigits: 2})} <span className="text-sm text-zinc-500 font-sans font-normal pt-2">USDT</span>
                         </div>
+                        
+                        {/* Wallet Address with Tooltip */}
+                        <div 
+                          className="inline-flex items-center gap-2 mb-4 bg-black/40 border border-white/5 rounded-md px-2 py-1 cursor-pointer hover:border-primary-500/30 transition-colors relative group/tooltip"
+                          onClick={() => handleCopy(wallet.address, 'sidebar_addr')}
+                        >
+                           <div className="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse"></div>
+                           <span className="text-[10px] font-mono text-zinc-400">
+                             {wallet.address.substring(0, 6)}...{wallet.address.substring(wallet.address.length - 4)}
+                           </span>
+                           {copiedField === 'sidebar_addr' ? (
+                             <Check className="w-3 h-3 text-primary-500" />
+                           ) : (
+                             <Copy className="w-3 h-3 text-zinc-600 group-hover/tooltip:text-primary-500 transition-colors" />
+                           )}
+                           
+                           {/* Tooltip */}
+                           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-800 text-[10px] text-white rounded opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-white/10">
+                             {copiedField === 'sidebar_addr' ? 'Copied!' : 'Copy Address'}
+                           </div>
+                        </div>
+
                         <div className="text-xs font-mono text-zinc-600 mb-6">
                           ≈ ${(parseFloat(wallet.balance) * parseFloat(marketData.usdt.price)).toLocaleString(undefined, {minimumFractionDigits: 2})} USD
                         </div>
                         
                         <div className="grid grid-cols-2 gap-3">
-                            <button className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 rounded-lg py-2.5 text-xs font-medium text-white transition-all">Deposit</button>
+                            <button 
+                              onClick={() => setShowDepositModal(true)}
+                              className="bg-primary-500/10 hover:bg-primary-500/20 border border-primary-500/20 hover:border-primary-500/40 rounded-lg py-2.5 text-xs font-medium text-primary-400 transition-all flex items-center justify-center gap-2"
+                            >
+                                <QrCode className="w-3.5 h-3.5" />
+                                Deposit
+                            </button>
                             <button className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 rounded-lg py-2.5 text-xs font-medium text-white transition-all">Withdraw</button>
                         </div>
                       </div>
